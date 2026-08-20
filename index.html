@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tesla Vortex Clock</title>
+    <style>
+        :root {
+            --bg-color: #08090c;
+            --circle-color: rgba(0, 217, 255, 0.15);
+            --line-vortex: rgba(0, 217, 255, 0.25);
+            --line-369: rgba(255, 0, 128, 0.35);
+            --text-glow: #00d9ff;
+            --node-active: #00f0ff;
+            --node-369: #ff0080;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: #ffffff;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            position: relative;
+        }
+
+        .clock-wrapper {
+            position: relative;
+            width: min(85vw, 480px);
+            height: min(85vw, 480px);
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg); /* Start 9 at the absolute top */
+        }
+
+        /* SVG Styles */
+        .outer-ring {
+            fill: none;
+            stroke: var(--circle-color);
+            stroke-width: 2;
+        }
+
+        .vortex-path {
+            fill: none;
+            stroke: var(--line-vortex);
+            stroke-width: 1.5;
+            stroke-dasharray: 4 2;
+        }
+
+        .triad-path {
+            fill: none;
+            stroke: var(--line-369);
+            stroke-width: 2;
+        }
+
+        .signal-line {
+            fill: none;
+            stroke-linecap: round;
+            transition: all 0.2s ease;
+        }
+
+        .sec-line {
+            stroke: #00f0ff;
+            stroke-width: 3;
+            filter: drop-shadow(0 0 6px #00f0ff);
+        }
+
+        .min-line {
+            stroke: #ffe600;
+            stroke-width: 4;
+            filter: drop-shadow(0 0 8px #ffe600);
+        }
+
+        .hr-line {
+            stroke: #ff0080;
+            stroke-width: 5;
+            filter: drop-shadow(0 0 10px #ff0080);
+        }
+
+        .node-circle {
+            fill: #0c101d;
+            stroke: var(--circle-color);
+            stroke-width: 2;
+            transition: all 0.3s ease;
+        }
+
+        .node-circle.active-sec {
+            fill: #00f0ff;
+            stroke: #ffffff;
+            filter: drop-shadow(0 0 12px #00f0ff);
+        }
+
+        .node-circle.active-min {
+            stroke: #ffe600;
+            stroke-width: 4;
+            filter: drop-shadow(0 0 12px #ffe600);
+        }
+
+        .node-circle.active-hr {
+            stroke: #ff0080;
+            stroke-width: 4;
+            filter: drop-shadow(0 0 14px #ff0080);
+        }
+
+        .node-text {
+            font-size: 18px;
+            font-weight: 700;
+            fill: #6c7a89;
+            text-anchor: middle;
+            dominant-baseline: central;
+            transform-origin: center;
+            transition: fill 0.3s ease;
+        }
+
+        /* Un-rotate text so numbers are right-side up */
+        .node-text-group {
+            transform-origin: center;
+        }
+
+        .node-369 {
+            fill: var(--node-369);
+        }
+
+        /* Digital Display Overlay */
+        .digital-readout {
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .time-display {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 2.2rem;
+            font-weight: bold;
+            letter-spacing: 4px;
+            color: #ffffff;
+            text-shadow: 0 0 10px var(--text-glow);
+        }
+
+        .vortex-readout {
+            font-size: 0.9rem;
+            color: #8a9ba8;
+            margin-top: 6px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .highlight-369 {
+            color: var(--node-369);
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="clock-wrapper">
+        <svg id="clock" viewBox="0 0 400 400">
+            <!-- Outer Boundary Circles -->
+            <circle cx="200" cy="200" r="170" class="outer-ring" />
+            <circle cx="200" cy="200" r="162" class="outer-ring" style="stroke-dasharray: 2 6;" />
+
+            <!-- Doubling Circuit Path (1-2-4-8-7-5-1) -->
+            <path id="vortex-circuit" class="vortex-path" />
+
+            <!-- 3-6-9 Triangle Circuit -->
+            <path id="triad-circuit" class="triad-path" />
+
+            <!-- Dynamic Hands/Beams -->
+            <path id="hr-beam" class="signal-line hr-line" />
+            <path id="min-beam" class="signal-line min-line" />
+            <path id="sec-beam" class="signal-line sec-line" />
+
+            <!-- Nodes Container -->
+            <g id="nodes-group"></g>
+        </svg>
+    </div>
+
+    <div class="digital-readout">
+        <div class="time-display" id="digital-time">00:00:00</div>
+        <div class="vortex-readout" id="vortex-digital">Digital Roots: H:0 | M:0 | S:0</div>
+    </div>
+</div>
+
+<script>
+    // Center & Radius Config
+    const CX = 200, CY = 200, R = 150;
+
+    // Tesla Enneagram sequence map (Index 1 to 9)
+    // 9 is at top (-90deg relative to 0)
+    const nodeCoords = {};
+    const vortexSequence = [1, 2, 4, 8, 7, 5]; // Binary doubling loop (1->2->4->8->7->5->1)
+    const triadSequence = [3, 9, 6];           // 3-6-9 Oscillation
+
+    // Helper: Digital Root calculation
+    function digitalRoot(n) {
+        if (n === 0) return 9;
+        return 1 + ((n - 1) % 9);
+    }
+
+    // Calculate node position (1 through 9 arranged clockwise around circle)
+    function getPoint(nodeNumber) {
+        // Node 9 is at 12 o'clock (-90 deg, or 0 in SVG rotated setup)
+        const angle = ((nodeNumber - 9) * 40) * (Math.PI / 180);
+        return {
+            x: CX + R * Math.cos(angle),
+            y: CY + R * Math.sin(angle)
+        };
+    }
+
+    // Initialize node coordinates
+    for (let i = 1; i <= 9; i++) {
+        nodeCoords[i] = getPoint(i);
+    }
+
+    // Generate Path Data for SVG
+    function buildPath(sequence, closePath = true) {
+        let d = sequence.map((num, idx) => {
+            const pt = nodeCoords[num];
+            return `${idx === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`;
+        }).join(' ');
+        return closePath ? d + ' Z' : d;
+    }
+
+    // Draw Static Pathways
+    document.getElementById('vortex-circuit').setAttribute('d', buildPath(vortexSequence, true));
+    document.getElementById('triad-circuit').setAttribute('d', buildPath(triadSequence, true));
+
+    // Render 1-9 Node Circles and Text
+    const nodesGroup = document.getElementById('nodes-group');
+    for (let i = 1; i <= 9; i++) {
+        const pt = nodeCoords[i];
+        
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', pt.x);
+        circle.setAttribute('cy', pt.y);
+        circle.setAttribute('r', 18);
+        circle.setAttribute('class', `node-circle ${ (i % 3 === 0) ? 'node-369-ring' : '' }`);
+        circle.setAttribute('id', `node-${i}`);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', pt.x);
+        text.setAttribute('y', pt.y);
+        text.setAttribute('class', `node-text ${ (i % 3 === 0) ? 'node-369' : '' }`);
+        // Counter-rotate text so it renders horizontally
+        text.setAttribute('transform', `rotate(90 ${pt.x} ${pt.y})`);
+        text.textContent = i;
+
+        g.appendChild(circle);
+        g.appendChild(text);
+        nodesGroup.appendChild(g);
+    }
+
+    // Update Clock State
+    function updateClock() {
+        const now = new Date();
+        const h = now.getHours() > 12 ? now.getHours()-12 : now.getHours()
+        const m = now.getMinutes();
+        const s = now.getSeconds();
+
+        const meaning =  {
+  0: "thought",
+  1: "love",
+  2: "sharing",
+  3: "want",
+  4: "direction",
+  5: "person",
+  6: "positive",
+  7: "balance",
+  8: "home",
+  9: "universe",
+  9: "universe",
+  9: "universe"
+};
+        // Compute Digital Roots
+        const rootH = digitalRoot(h);
+        const rootM = digitalRoot(m);
+        const rootS = digitalRoot(s);
+        const hstring =  h <10 ? "0"+h : "*9"
+        // Update Digital Text
+        const pad = (num) => String(num).padStart(2, '0');
+
+         
+        document.getElementById('digital-time').textContent = `${hstring}:${pad(m)}:${pad(s)}`;
+        
+        const formatRoot = (r) => (r % 3 === 0) ? `<span class="highlight-369">${r}</span>` : r;
+        document.getElementById('vortex-digital').innerHTML = 
+            `Vortex Roots: H:${meaning[h]} | M: ${meaning[parseInt(pad(m)[0],10)]},${meaning[parseInt(pad(m)[1],10)]} | S:${formatRoot(rootS)}`;
+
+        // Reset Node Highlights
+        for (let i = 1; i <= 9; i++) {
+            const node = document.getElementById(`node-${i}`);
+            node.classList.remove('active-sec', 'active-min', 'active-hr');
+        }
+
+        // Apply Active States (Order determines precedence if overlapping)
+        document.getElementById(`node-${rootH}`).classList.add('active-hr');
+        document.getElementById(`node-${rootM}`).classList.add('active-min');
+        document.getElementById(`node-${rootS}`).classList.add('active-sec');
+
+        // Draw Dynamic Beam Paths (Center -> Hour Root -> Minute Root -> Second Root)
+        const ptH = nodeCoords[rootH];
+        const ptM = nodeCoords[rootM];
+        const ptS = nodeCoords[rootS];
+
+        document.getElementById('hr-beam').setAttribute('d', `M ${CX} ${CY} L ${ptH.x} ${ptH.y}`);
+        document.getElementById('min-beam').setAttribute('d', `M ${ptH.x} ${ptH.y} L ${ptM.x} ${ptM.y}`);
+        document.getElementById('sec-beam').setAttribute('d', `M ${ptM.x} ${ptM.y} L ${ptS.x} ${ptS.y}`);
+    }
+
+    // Loop
+    setInterval(updateClock, 1000);
+    updateClock();
+</script>
+
+</body>
+</html>
