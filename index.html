@@ -306,7 +306,7 @@
         
         const formatRoot = (r) => (r % 3 === 0) ? `<span class="highlight-369">${r}</span>` : r;
         document.getElementById('vortex-digital').innerHTML = 
-            `Vortex Roots: H:${meaning[h]} | M: ${meaning[parseInt(pad(m)[0],10)]},${meaning[parseInt(pad(m)[1],10)]} | S:${formatRoot(rootS)}`;
+            `Moment Message: H:${meaning[h]} | M: ${meaning[parseInt(pad(m)[0],10)]},${meaning[parseInt(pad(m)[1],10)]} | S:${formatRoot(rootS)}`;
 
         // Reset Node Highlights
         for (let i = 1; i <= 9; i++) {
